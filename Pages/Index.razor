@@ -1,0 +1,135 @@
+@page "/"
+@using System.Threading
+@implements IDisposable
+
+<div style="display:flex;justify-content:space-around;align-items:center;width:200px;height:230px;background-color:black">
+    <table>
+        <tr>
+            @for(int i=0; i < Numbers.Length; i++) {
+                <td><img src="@Numbers[i].ToString()" style="width:66px;height:100px"/></td>
+            }
+        </tr>
+        <tr>
+            @for(int i=0; i < Numbers.Length; i++) {
+                <td style="height:10px">&nbsp;</td>
+            }
+        </tr>
+        <tr>
+            @for(int i=0; i < Numbers.Length; i++) {
+                int idx = i; // 変数をキャプチャさせるため
+                <td style="text-align:center">
+                    <button class="btn btn-primary" disabled="@Numbers[i].Stopped" 
+                        onclick="@((Action)(()=>JudgeResult(idx)))" >◎
+                    </button>
+                </td>
+            }
+        </tr>
+    </table>
+</div>
+<br/>
+<span>@Message</span>
+<br/>
+<button class="btn btn-primary" @onclick="OnButtonClick" disabled="@btnState">@btnTitle</button>
+
+@code {
+    protected Digits [] Numbers;
+    protected string btnTitle;
+    protected bool btnState;    // 開始ボタンの状態
+    protected string Message;
+    const string TITLE_START = "Start";
+    const string TITLE_STOP = "Stop";
+
+    private Timer DisplayTimer; // 表示タイマー
+
+    /// <summary>
+    /// 初期化処理
+    /// </summary>
+    protected override void OnInitialized() {
+        // 初期値はランダム
+        Random rnd = new Random();
+        Numbers = new Digits[] {
+            new Digits() { Number=rnd.Next(10) },
+            new Digits() { Number=rnd.Next(10) },
+            new Digits() { Number=rnd.Next(10) }
+        };
+        btnTitle = TITLE_START;
+        btnState = false;
+        DisplayTimer = new Timer(
+            // タイマー処理
+            async (_) => {
+                for(int i=0; i < Numbers.Length; i++) {
+                    if (!Numbers[i].Stopped) {  // Stop状態でなければ
+                        // シーケンシャルに上げる(0～9)
+                        if (Numbers[i].Number >= 9) {
+                            Numbers[i].Number = 0;
+                        } else {
+                            Numbers[i].Number++;
+                        }
+                    }
+                }
+                // 表示更新
+                await InvokeAsync(StateHasChanged);
+            }
+        );
+    }
+    /// <summary>
+    /// 各数字の下のボタンクリック時に呼び出され、    
+    /// 全桁ともストップがどうかチェックし、ストップの場合、結果を出力
+    /// スタートボタンをイネーブルにする
+    /// </summary>
+    protected void JudgeResult(int idx) {
+        Numbers[idx].Stopped = true;
+        if (Numbers.Where(n=>n.Stopped).Count() == Numbers.Length) {    // 全部ストップ?
+            if (Numbers.Where(n=>n.Number==Numbers[0].Number).Count() == Numbers.Length) {  // 全部同じ値?
+                Message = "Congraturation!!";
+            } else {
+                Message = "Oh! My God!";
+            }
+            // 表示タイマーストップ
+            DisplayTimer.Change(Timeout.Infinite,Timeout.Infinite);
+            // スタートボタンイネーブル
+            btnState = false;
+            StateHasChanged();
+        }
+    }
+    /// <summary>
+    /// スタートボタンクリック時処理
+    /// </summary>
+    protected void OnButtonClick() {
+        if (btnTitle == TITLE_START) {
+            btnState = true;
+            // 数字の下のボタン状態をイネーブルに
+            for(int i=0; i < Numbers.Length; i++) {
+                Numbers[i].Stopped = false;
+            }
+            // 表示タイマースタート
+            DisplayTimer.Change(0,100);
+            //btnTitle = TITLE_STOP;
+        } else {// 使わなくなったよ
+            DisplayTimer.Change(Timeout.Infinite,Timeout.Infinite);
+            btnTitle = TITLE_START;
+        }
+    }
+    /// <summary>
+    /// 念のため、Dispose
+    /// </summary>
+    public void Dispose() {
+        if (DisplayTimer != null) {
+            // タイマーを止めてから、破棄
+            DisplayTimer.Change(Timeout.Infinite,Timeout.Infinite);
+            DisplayTimer.Dispose();
+        }
+    }
+    /// <summary>
+    /// 各数字のクラス
+    /// </summary>
+    public class Digits {
+        public bool Stopped { get; set; } = true;   // 停止状態か?
+        public int Number { get; set; } // 数値
+
+        public override string ToString() { // イメージ名
+            return $"images/{Number}.png";
+        }  
+    }
+
+}
